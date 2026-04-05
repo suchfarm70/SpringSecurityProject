@@ -34,6 +34,16 @@ public class AuthTokenFilter  extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         logger.debug("AuthTokenFilter called for URI: {}" , request.getRequestURI());
 
+        // FROM THIS COMMENT TO THE NEXT ALL CAPS COMMENT THE CODE IS TAKEN FROM CHATGPT
+        String path = request.getServletPath();
+
+        // 🔥 SKIP JWT CHECK FOR PUBLIC ENDPOINTS
+        if (path.equals("/signin") || path.startsWith("/h2-console")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        // TILL THIS COMMENT THE CODE IS WRITTEN USING CHATGPT
+
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {

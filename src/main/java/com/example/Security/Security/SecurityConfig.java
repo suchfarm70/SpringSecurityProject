@@ -3,6 +3,7 @@ package com.example.Security.Security;
 import com.example.Security.Jwt.AuthEntryPointJwt;
 import com.example.Security.Jwt.AuthTokenFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -10,6 +11,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
@@ -60,25 +62,24 @@ public class SecurityConfig {
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                // THE LINE EXTACTLY BELOW THIS CODE WAS TAKEN FROM GEMENI
+                .csrf(AbstractHttpConfigurer::disable) // <-- Disable CSRF for stateless REST APIs
                 .authorizeHttpRequests((requests) -> requests
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/signin").permitAll()
                         .anyRequest().authenticated()
                 )
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/h2-console/**")
-                )
                 .headers(headers -> headers
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
+                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
                 )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS) // ✅ FIX
                         //session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 );
                 //.httpBasic(withDefaults());
-                http.exceptionHandling(exception ->
+        http.exceptionHandling(exception ->
                         exception.authenticationEntryPoint(unauthorizedHandler)
-                );
+        );
         http.addFilterBefore(authenticationJwtTokenFilter(),
                 UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -86,6 +87,7 @@ public class SecurityConfig {
 
 
 
+    /*
     @Bean
     public UserDetailsService userDetailsService() {
         UserDetails user1 = User.withUsername("User1")
@@ -102,7 +104,35 @@ public class SecurityConfig {
         userDetailsManager.createUser(admin);
         return userDetailsManager;
         //return new InMemoryUserDetailsManager(user1 ,  admin);
+    }*/
+
+    @Bean
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
     }
+
+    @Bean
+    public CommandLineRunner initData(UserDetailsService userDetailsService) {
+        return args -> {
+            JdbcUserDetailsManager manager = (JdbcUserDetailsManager) userDetailsService;
+
+            UserDetails user1 = User.withUsername("user1")
+                    .password(passwordEncoder().encode("password1"))
+                    .roles("USER")
+                    .build();
+
+            UserDetails admin = User.withUsername("admin")
+                    //.password(passwordEncoder().encode("adminPass"))
+                    .password(passwordEncoder().encode("adminPass"))
+                    .roles("ADMIN")
+                    .build();
+
+            JdbcUserDetailsManager userDetailsManager = new JdbcUserDetailsManager(dataSource);
+            userDetailsManager.createUser(user1);
+            userDetailsManager.createUser(admin);
+        };
+    }
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {
